@@ -1,0 +1,14 @@
+{
+  "name": "interview-copilot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AI interview copilot: live question capture, auto-answer on silence, teleprompter view. Static site + Netlify Function proxy for Gemini.",
+  "type": "module",
+  "scripts": {
+    "dev": "netlify dev",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

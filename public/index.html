@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-950 text-slate-100">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Interview Copilot & Stealth Assistant</title>
+    <meta name="theme-color" content="#020617">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
+
+    <!-- Tailwind (Play CDN, version pinned) -->
+    <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+    <script src="/assets/tailwind-config.js"></script>
+    <!-- Lucide icons (version pinned). The app still works if this fails to load. -->
+    <script src="https://unpkg.com/lucide@0.383.0/dist/umd/lucide.min.js"></script>
+    <link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body class="h-full font-sans antialiased overflow-hidden select-none">
+
+    <!-- Top Navigation & Control Header -->
+    <header id="main-header" class="h-14 border-b border-slate-800 bg-slate-900/90 px-4 flex items-center justify-between z-30 relative transition-all duration-300">
+        <div class="flex items-center space-x-3">
+            <div class="p-1.5 bg-blue-600/20 text-blue-400 rounded-lg border border-blue-500/30">
+                <i data-lucide="bot" class="w-5 h-5 flex-shrink-0"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-sm tracking-wide text-white flex items-center gap-2">
+                    InterviewCopilot Pro
+                    <span id="vad-badge" class="text-[10px] px-2 py-0.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-full font-mono">Auto 3s VAD</span>
+                </h1>
+            </div>
+        </div>
+
+        <!-- Central Status Indicators -->
+        <div class="hidden lg:flex items-center space-x-4 text-xs">
+            <div id="badge-sys-audio" class="flex items-center gap-1.5 px-2.5 py-1 bg-slate-950 border border-slate-800 rounded-full text-slate-400">
+                <span class="w-2 h-2 rounded-full bg-slate-600" id="dot-sys-audio"></span>
+                <span>Interviewer Audio</span>
+            </div>
+            <div id="badge-mic-audio" class="flex items-center gap-1.5 px-2.5 py-1 bg-slate-950 border border-slate-800 rounded-full text-slate-400">
+                <span class="w-2 h-2 rounded-full bg-slate-600" id="dot-mic-audio"></span>
+                <span>Candidate Mic</span>
+            </div>
+            <div id="badge-vad-status" class="flex items-center gap-1.5 px-2.5 py-1 bg-slate-950 border border-slate-800 rounded-full text-slate-400 font-mono">
+                <i data-lucide="timer" class="w-3.5 h-3.5 text-amber-400"></i>
+                <span id="vad-timer-label">Silence Timer Idle</span>
+            </div>
+        </div>
+
+        <!-- Header Controls -->
+        <div class="flex items-center space-x-3">
+            <button id="btn-privacy" type="button" class="text-xs flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-md border border-slate-700 transition">
+                <i data-lucide="shield-alert" class="w-3.5 h-3.5 text-amber-400"></i>
+                <span class="hidden sm:inline">Screen Share Tips</span>
+            </button>
+
+            <!-- Mode Selector (Dashboard vs Stealth Overlay) -->
+            <div class="bg-slate-950 p-1 rounded-lg border border-slate-800 flex items-center text-xs">
+                <button id="tab-dashboard-btn" type="button" class="px-3 py-1 rounded-md bg-blue-600 text-white font-medium transition">Dashboard</button>
+                <button id="tab-stealth-btn" type="button" class="px-3 py-1 rounded-md text-slate-400 hover:text-white font-medium transition flex items-center gap-1">
+                    <i data-lucide="eye-off" class="w-3.5 h-3.5"></i> Stealth View
+                </button>
+            </div>
+
+            <!-- Transparency Slider -->
+            <div class="hidden md:flex items-center gap-2 pl-2 border-l border-slate-800">
+                <i data-lucide="sun" class="w-3.5 h-3.5 text-slate-400"></i>
+                <input type="range" id="opacity-slider" min="30" max="100" value="95" aria-label="Interface opacity" class="w-20 accent-blue-500 cursor-pointer h-1.5 bg-slate-800 rounded-lg">
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Workspace Layout -->
+    <div id="app-container" class="h-[calc(100vh-3.5rem)] flex flex-col md:flex-row bg-slate-950 transition-all duration-300">
+
+        <!-- Left Sidebar (Speech Pipeline & AI Controls) -->
+        <aside id="sidebar" class="w-full md:w-80 border-r border-slate-800 bg-slate-900/50 flex flex-col justify-between shrink-0 transition-all duration-300 overflow-y-auto">
+            <div class="p-4 space-y-5">
+
+                <!-- Speech Engine & Audio Capture Setup -->
+                <div class="space-y-3">
+                    <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Dual Speech & Audio Engine</label>
+
+                    <!-- 1. Interviewer Audio Listener -->
+                    <div class="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-medium text-slate-200 flex items-center gap-1.5">
+                                <i data-lucide="volume-2" class="w-4 h-4 text-blue-400"></i> Interviewer Stream
+                            </span>
+                            <button id="btn-toggle-interviewer" type="button" class="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs font-medium transition">
+                                Listen
+                            </button>
+                        </div>
+                        <p class="text-[11px] text-slate-400 leading-tight">
+                            Captures interviewer questions automatically with auto 3-second silence trigger.
+                        </p>
+                        <p id="source-hint" class="text-[11px] text-slate-500 leading-tight">
+                            Source: microphone (speech recognition).
+                        </p>
+                        <button id="btn-capture-tab" type="button" class="w-full py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[11px] border border-slate-700 transition flex items-center justify-center gap-1.5">
+                            <i data-lucide="monitor" class="w-3.5 h-3.5 text-amber-400"></i>
+                            <span id="capture-tab-label">Capture Tab / Meeting Audio</span>
+                        </button>
+                    </div>
+
+                    <!-- 2. Candidate Response Audio Listener -->
+                    <div class="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-medium text-slate-200 flex items-center gap-1.5">
+                                <i data-lucide="mic" class="w-4 h-4 text-emerald-400"></i> Log My Answer
+                            </span>
+                            <button id="btn-toggle-candidate" type="button" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-xs font-medium transition">
+                                Record Mic
+                            </button>
+                        </div>
+                        <p class="text-[11px] text-slate-400 leading-tight">
+                            Record your actual response so Gemini remembers it for follow-up questions.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Auto Trigger Settings -->
+                <div class="p-3 bg-slate-900/90 border border-slate-800 rounded-xl space-y-3">
+                    <div class="flex items-center justify-between">
+                        <label for="auto-trigger-toggle" class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                            <i data-lucide="zap" class="w-3.5 h-3.5 text-amber-400"></i> Auto-Answer VAD
+                        </label>
+                        <input type="checkbox" id="auto-trigger-toggle" checked class="accent-blue-500 w-4 h-4 cursor-pointer">
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-[11px] text-slate-400 mb-1">
+                            <span>Silence Delay Threshold:</span>
+                            <span id="silence-delay-val" class="font-mono text-blue-400 font-bold">3 sec</span>
+                        </div>
+                        <input type="range" id="silence-slider" min="1" max="7" value="3" aria-label="Silence delay in seconds" class="w-full accent-blue-500 cursor-pointer h-1.5 bg-slate-800 rounded-lg">
+                    </div>
+                </div>
+
+                <!-- Interview Track Setup -->
+                <div class="space-y-2">
+                    <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Interview Track</label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button type="button" data-track="technical" class="track-btn border border-blue-500/50 bg-blue-500/10 text-blue-400 p-2 rounded-lg text-left text-xs font-medium flex items-center gap-1.5 transition">
+                            <i data-lucide="code" class="w-3.5 h-3.5"></i> Technical
+                        </button>
+                        <button type="button" data-track="behavioral" class="track-btn border border-slate-800 bg-slate-900 hover:bg-slate-800 text-slate-400 p-2 rounded-lg text-left text-xs font-medium flex items-center gap-1.5 transition">
+                            <i data-lucide="users" class="w-3.5 h-3.5"></i> Behavioral
+                        </button>
+                        <button type="button" data-track="system" class="track-btn border border-slate-800 bg-slate-900 hover:bg-slate-800 text-slate-400 p-2 rounded-lg text-left text-xs font-medium flex items-center gap-1.5 transition">
+                            <i data-lucide="layers" class="w-3.5 h-3.5"></i> System Design
+                        </button>
+                        <button type="button" data-track="custom" class="track-btn border border-slate-800 bg-slate-900 hover:bg-slate-800 text-slate-400 p-2 rounded-lg text-left text-xs font-medium flex items-center gap-1.5 transition">
+                            <i data-lucide="sliders" class="w-3.5 h-3.5"></i> Custom Role
+                        </button>
+                    </div>
+                </div>
+
+                <!-- API Key Fallback Input -->
+                <div class="p-3 bg-slate-900/60 border border-slate-800 rounded-xl space-y-2">
+                    <label for="custom-api-key" class="block text-[11px] font-semibold text-slate-400">Gemini API Key (Optional Override)</label>
+                    <input type="password" id="custom-api-key" autocomplete="off" placeholder="Using server key..." class="w-full bg-slate-950 border border-slate-800 rounded p-1.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500">
+                    <div id="access-code-wrap" class="hidden space-y-1">
+                        <label for="access-code" class="block text-[11px] font-semibold text-slate-400">Access Code</label>
+                        <input type="password" id="access-code" autocomplete="off" placeholder="Required by this site" class="w-full bg-slate-950 border border-slate-800 rounded p-1.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500">
+                    </div>
+                </div>
+
+                <!-- Candidate Context Display -->
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between">
+                        <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Candidate Profile</label>
+                        <button type="button" id="btn-edit-context" class="text-[10px] text-blue-400 cursor-pointer hover:underline">Edit Context</button>
+                    </div>
+                    <div class="p-2.5 bg-slate-900 border border-slate-800 rounded-lg space-y-1">
+                        <div class="text-xs text-slate-300 font-medium flex items-center justify-between gap-2">
+                            <span id="profile-role-display">Senior Full-Stack Engineer</span>
+                            <span id="profile-exp-display" class="text-[10px] bg-slate-800 px-1.5 py-0.5 rounded text-slate-400 shrink-0">8+ YOE</span>
+                        </div>
+                        <p id="profile-summary-display" class="text-[11px] text-slate-400 line-clamp-2">
+                            Specialized in React, Node.js, Distributed Systems, Cloud Architecture & Scalable Web Apps.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer Status -->
+            <div class="p-3 border-t border-slate-800 bg-slate-950 flex items-center justify-between text-[11px] text-slate-500">
+                <span class="flex items-center gap-1.5 min-w-0">
+                    <span id="status-dot" class="w-2 h-2 rounded-full bg-slate-600 shrink-0"></span>
+                    <span id="status-text" class="truncate">Checking Gemini…</span>
+                </span>
+                <button id="btn-clear-logs" type="button" class="hover:text-red-400 transition" title="Clear Session Log">
+                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Live Teleprompter Area -->
+        <main class="flex-1 flex flex-col h-full min-w-0 bg-slate-950">
+
+            <!-- Live Auto Question & Teleprompter Bar -->
+            <div class="p-4 border-b border-slate-800 bg-slate-900/40">
+                <form id="question-form" class="space-y-2">
+                    <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
+                        <span class="flex items-center gap-1.5 font-medium">
+                            <i data-lucide="activity" class="w-3.5 h-3.5 text-blue-400"></i> Live Captured Question Stream
+                        </span>
+                        <!-- Visual Auto Silence Progress Bar -->
+                        <div class="flex items-center gap-2">
+                            <div class="w-32 bg-slate-800 h-2 rounded-full overflow-hidden">
+                                <div id="vad-progress-bar" class="bg-amber-400 h-full w-0 transition-all duration-300"></div>
+                            </div>
+                            <span id="vad-countdown-text" class="font-mono text-[11px] text-amber-400 w-12 text-right">3.0s</span>
+                        </div>
+                    </div>
+
+                    <div class="flex gap-2">
+                        <div class="relative flex-1">
+                            <input type="text" id="question-input" autocomplete="off" placeholder="Listening for interviewer question... (Or type manually)" class="w-full bg-slate-900 border border-slate-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-lg px-4 py-3 text-sm text-white placeholder-slate-500 outline-none transition pr-10">
+                            <button type="button" id="btn-clear-input" aria-label="Clear question" class="absolute right-3 top-3 text-slate-500 hover:text-slate-300">
+                                <i data-lucide="x" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                        <button type="submit" id="generate-btn" class="px-5 py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-60 disabled:cursor-not-allowed font-medium text-sm text-white rounded-lg transition flex items-center gap-2 shrink-0">
+                            <i data-lucide="sparkles" class="w-4 h-4"></i> Generate Answer Now
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Scrollable Teleprompter & History Timeline -->
+            <div class="flex-1 overflow-y-auto p-4 md:p-6 space-y-6" id="output-scroll-container">
+
+                <!-- Placeholder Screen -->
+                <div id="welcome-placeholder" class="h-full flex flex-col items-center justify-center text-center p-8 border-2 border-dashed border-slate-800/80 rounded-2xl max-w-2xl mx-auto my-8">
+                    <div class="w-12 h-12 bg-blue-500/10 text-blue-400 rounded-full flex items-center justify-center mb-4 border border-blue-500/20">
+                        <i data-lucide="mic" class="w-6 h-6"></i>
+                    </div>
+                    <h2 class="text-lg font-bold text-white mb-2">Automated Interview Copilot Ready</h2>
+                    <p class="text-xs text-slate-400 mb-6 max-w-md leading-relaxed">
+                        Click <strong class="text-blue-400">"Listen"</strong> to capture interviewer questions automatically. When the interviewer pauses for the silence delay (<strong id="welcome-delay">3 seconds</strong> by default), Gemini will automatically generate teleprompter bullet points.
+                    </p>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full text-left">
+                        <div class="p-3 bg-slate-900 border border-slate-800 rounded-lg">
+                            <span class="text-xs font-semibold text-blue-400 block mb-1">⏱️ 3-Sec Auto Trigger</span>
+                            <span class="text-[11px] text-slate-400">Zero-click response generation right when interviewer finishes asking.</span>
+                        </div>
+                        <div class="p-3 bg-slate-900 border border-slate-800 rounded-lg">
+                            <span class="text-xs font-semibold text-emerald-400 block mb-1">🎙️ Candidate Mic Memory</span>
+                            <span class="text-[11px] text-slate-400">Record candidate responses into conversation history for follow-ups.</span>
+                        </div>
+                        <div class="p-3 bg-slate-900 border border-slate-800 rounded-lg">
+                            <span class="text-xs font-semibold text-purple-400 block mb-1">👁️ Invisible Stealth Overlay</span>
+                            <span class="text-[11px] text-slate-400">Compact teleprompter layout placed alongside screen shared tabs.</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Active AI Answer Teleprompter Display -->
+                <div id="active-answer-wrapper" class="hidden space-y-4">
+                    <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+                        <div class="flex items-center gap-2">
+                            <span class="px-2 py-0.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[10px] rounded font-mono uppercase tracking-wider" id="current-track-tag">Technical</span>
+                            <span class="text-xs text-slate-400" id="current-timestamp">Just now</span>
+                            <span class="text-[10px] px-2 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded font-mono" id="auto-triggered-badge">Auto 3s Triggered</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <button id="btn-copy" type="button" class="text-xs px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded border border-slate-700 transition flex items-center gap-1">
+                                <i data-lucide="copy" class="w-3.5 h-3.5"></i> Copy Text
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Question Echo -->
+                    <div class="p-3 bg-slate-900/90 border border-slate-800 rounded-lg">
+                        <span class="text-[10px] text-slate-500 uppercase font-semibold block mb-0.5">Interviewer Question Captured</span>
+                        <h3 id="display-question" class="text-sm font-semibold text-slate-200"></h3>
+                    </div>
+
+                    <!-- Key Bullet Talking Points (Teleprompter view) -->
+                    <div class="p-4 bg-blue-950/20 border border-blue-500/30 rounded-xl space-y-2">
+                        <div class="flex items-center justify-between">
+                            <h4 class="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
+                                <i data-lucide="list-checks" class="w-4 h-4"></i> Teleprompter Bullet Points (Glance & Speak)
+                            </h4>
+                            <span class="text-[10px] text-blue-300/60">30-second summary</span>
+                        </div>
+                        <ul id="display-bullets" class="space-y-1.5 text-sm text-slate-100 font-medium"></ul>
+                    </div>
+
+                    <!-- Detailed Response Strategy & Technical Deep Dive -->
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                        <div class="lg:col-span-2 p-4 bg-slate-900/60 border border-slate-800 rounded-xl space-y-3">
+                            <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                                <i data-lucide="file-text" class="w-4 h-4 text-emerald-400"></i> Detailed Answer & STAR Strategy
+                            </h4>
+                            <div id="display-detailed" class="text-xs text-slate-300 leading-relaxed space-y-2 whitespace-pre-line select-text"></div>
+                        </div>
+
+                        <!-- Technical Keywords & Metrics -->
+                        <div class="p-4 bg-slate-900/60 border border-slate-800 rounded-xl space-y-3">
+                            <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                                <i data-lucide="key" class="w-4 h-4 text-amber-400"></i> Mention Keywords & Tech Stack
+                            </h4>
+                            <div id="display-keywords" class="flex flex-wrap gap-1.5"></div>
+                            <div class="mt-4 pt-3 border-t border-slate-800">
+                                <h5 class="text-[11px] font-semibold text-slate-400 mb-1">Follow-up Edge Cases</h5>
+                                <p id="display-edgecases" class="text-[11px] text-slate-400 leading-tight">--</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Candidate Answer Recorder Prompt (Appears after AI answer generated) -->
+                <div id="candidate-recorder-box" class="hidden p-4 bg-emerald-950/20 border border-emerald-500/30 rounded-xl space-y-3">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <i data-lucide="mic" class="w-4 h-4 text-emerald-400"></i>
+                            <h4 class="text-xs font-bold text-emerald-400 uppercase tracking-wider">Record Candidate Spoken Answer</h4>
+                        </div>
+                        <span class="text-[10px] text-slate-400">Saves actual response into Gemini conversation memory</span>
+                    </div>
+
+                    <div class="flex gap-2">
+                        <input type="text" id="candidate-speech-input" autocomplete="off" placeholder="Click 'Record Mic' or type candidate's actual response..." class="flex-1 bg-slate-900 border border-slate-800 rounded p-2 text-xs text-white placeholder-slate-500">
+                        <button id="btn-save-candidate" type="button" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs rounded transition flex items-center gap-1">
+                            <i data-lucide="save" class="w-3.5 h-3.5"></i> Save To Context
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Session Timeline & Transcript Feed -->
+                <div class="pt-6 border-t border-slate-800/80">
+                    <div class="flex items-center justify-between mb-3">
+                        <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <i data-lucide="history" class="w-4 h-4"></i> Session Transcript Feed (<span id="transcript-count">0</span>)
+                        </h4>
+                        <button id="btn-export" type="button" class="text-xs text-blue-400 hover:underline">Export Full Log</button>
+                    </div>
+                    <div id="transcript-feed" class="space-y-3 select-text">
+                        <p class="text-xs text-slate-600 italic">No previous interview turns logged yet.</p>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- Screen Share Privacy Guidance Modal -->
+    <div id="privacy-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Screen share privacy rules">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div class="flex items-start justify-between">
+                <div class="flex items-center gap-2 text-amber-400">
+                    <i data-lucide="shield-check" class="w-6 h-6"></i>
+                    <h3 class="font-bold text-slate-100">Screen-Share Privacy Rules</h3>
+                </div>
+                <button type="button" data-close="privacy-modal" aria-label="Close" class="text-slate-500 hover:text-white">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <p class="text-xs text-slate-300 leading-relaxed">
+                Follow these setup steps to ensure your teleprompter stays invisible during screen sharing:
+            </p>
+            <ul class="space-y-2.5 text-xs text-slate-400 list-disc list-inside">
+                <li><strong class="text-slate-200">Share Application Window Only:</strong> When sharing on Zoom, Teams, or Google Meet, select only your Browser or IDE tab—<span class="text-amber-400">never select "Entire Screen"</span>.</li>
+                <li><strong class="text-slate-200">Stealth Overlay Mode:</strong> Switch this app to <span class="text-blue-400">Stealth View</span> and lower transparency using the sun slider.</li>
+                <li><strong class="text-slate-200">System Audio Capture:</strong> Use the "Capture Tab Audio" button to feed interviewer audio directly without echo.</li>
+            </ul>
+            <div class="pt-2">
+                <button type="button" data-close="privacy-modal" class="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs rounded-lg transition">I Understand</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Profile Context Modal -->
+    <div id="context-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Edit candidate profile">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
+            <div class="flex items-start justify-between">
+                <h3 class="font-bold text-slate-100">Edit Candidate Profile Context</h3>
+                <button type="button" data-close="context-modal" aria-label="Close" class="text-slate-500 hover:text-white">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="space-y-3 text-xs">
+                <div class="grid grid-cols-3 gap-3">
+                    <div class="col-span-2">
+                        <label for="input-role" class="block text-slate-400 mb-1">Target Job Title</label>
+                        <input type="text" id="input-role" class="w-full bg-slate-950 border border-slate-800 rounded p-2 text-white">
+                    </div>
+                    <div>
+                        <label for="input-exp" class="block text-slate-400 mb-1">Experience</label>
+                        <input type="text" id="input-exp" class="w-full bg-slate-950 border border-slate-800 rounded p-2 text-white">
+                    </div>
+                </div>
+                <div>
+                    <label for="input-summary" class="block text-slate-400 mb-1">Key Background & Accomplishments</label>
+                    <textarea id="input-summary" rows="4" class="w-full bg-slate-950 border border-slate-800 rounded p-2 text-white select-text"></textarea>
+                </div>
+            </div>
+            <div class="flex justify-end space-x-2 pt-2">
+                <button type="button" data-close="context-modal" class="px-3 py-1.5 bg-slate-800 text-slate-300 rounded text-xs">Cancel</button>
+                <button type="button" id="btn-save-context" class="px-4 py-1.5 bg-blue-600 text-white rounded text-xs font-medium">Save Settings</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toasts -->
+    <div id="toast-root" class="fixed bottom-4 right-4 z-[60] space-y-2 w-80 max-w-[calc(100vw-2rem)]" aria-live="polite"></div>
+
+    <script src="/assets/app.js"></script>
+</body>
+</html>
